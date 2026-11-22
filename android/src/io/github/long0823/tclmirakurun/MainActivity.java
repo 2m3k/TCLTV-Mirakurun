@@ -18,10 +18,14 @@ public final class MainActivity extends Activity {
     private TextView serverState;
     private final Handler networkRefresh=new Handler(Looper.getMainLooper());
     private int refreshTicks;
-    private final Runnable refreshNetwork=new Runnable(){public void run(){if(networkAddresses!=null)networkAddresses.setText(NetworkSettings.describe(MainActivity.this));if(++refreshTicks%6==0)updateServerState();networkRefresh.postDelayed(this,5000);}};
+    private final Runnable refreshNetwork=new Runnable(){public void run(){if(networkAddresses!=null)networkAddresses.setText(shortAddress());if(++refreshTicks%6==0)updateServerState();networkRefresh.postDelayed(this,5000);}};
     private volatile boolean rebootScheduled;
     private volatile boolean serverCheckRunning;
     private int openSection=0;
+    private boolean userChoseSection=false;
+    private boolean autoSectionDone=false;
+    private LinearLayout[] sectionArr;
+    private Button[] tileArr;
     private final List<Button> buttons=new ArrayList<>();
     interface Operation { String run() throws Exception; }
     // Material You style palette (dark, teal seed) — same as the 3wave setup app
@@ -69,9 +73,9 @@ public final class MainActivity extends Activity {
         LinearLayout dashL=new LinearLayout(this); dashL.setOrientation(LinearLayout.VERTICAL); dashL.setPadding(0,0,dp(10),0); dashCols.addView(dashL,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout dashR=new LinearLayout(this); dashR.setOrientation(LinearLayout.VERTICAL); dashR.setPadding(dp(10),0,0,0); dashCols.addView(dashR,new LinearLayout.LayoutParams(0,-2,1));
         serverState=new TextView(this); serverState.setText("Mirakurun：確認中…"); serverState.setTextSize(16); serverState.setTextColor(COL_TEXT); serverState.setPadding(0,dp(6),0,0); dashL.addView(serverState);
-        TextView addresses=new TextView(this);networkAddresses=addresses;addresses.setText(NetworkSettings.describe(this)); addresses.setTextSize(14); addresses.setTextColor(COL_ACCENT); addresses.setTextIsSelectable(true); addresses.setPadding(0,dp(4),0,0); dashL.addView(addresses);
+        TextView addresses=new TextView(this);networkAddresses=addresses;addresses.setText(shortAddress()); addresses.setTextSize(14); addresses.setTextColor(COL_ACCENT); addresses.setTextIsSelectable(true); addresses.setPadding(0,dp(4),0,0); dashL.addView(addresses);
         output=new TextView(this); output.setTextSize(13); output.setTextColor(Color.WHITE); output.setPadding(0,dp(6),0,dp(2));
-        output.setText("セットアップ完了後はTVを自動再起動し、Mirakurunを起動します。\nCATVを使う場合は、起動後に「3. CATVをスキャン・局更新」を実行してください（約5〜10分、進行状況をここに表示します）。\n既存のBonDriver・IPTVとの同じチューナーの同時利用は避けてください。"); dashR.addView(output);
+        output.setText("セットアップ完了後はTVを自動再起動し、Mirakurunを起動します。\nCATVを使う場合は、起動後に「3. CATVをスキャン・局更新」を実行してください。"); dashR.addView(output);
         // ---- Sections (containers first; buttons are created in the original order) ----
         LinearLayout secSetup=new LinearLayout(this); secSetup.setOrientation(LinearLayout.VERTICAL);
         LinearLayout secDaily=new LinearLayout(this); secDaily.setOrientation(LinearLayout.VERTICAL);
@@ -83,10 +87,11 @@ public final class MainActivity extends Activity {
         LinearLayout grow1=new LinearLayout(this); grow1.setOrientation(LinearLayout.HORIZONTAL); grid.addView(grow1);
         LinearLayout grow2=new LinearLayout(this); grow2.setOrientation(LinearLayout.HORIZONTAL); grid.addView(grow2);
         String[] catNames={"セットアップ","ふだんの操作","ネットワーク","メンテナンス"};
-        for(int i=0;i<4;i++){ final int idx=i; tiles[i]=tileButton(idx<2?grow1:grow2,catNames[i],()->showSection(sections,tiles,idx)); }
+        for(int i=0;i<4;i++){ final int idx=i; tiles[i]=tileButton(idx<2?grow1:grow2,catNames[i],()->{userChoseSection=true;showSection(sections,tiles,idx);}); }
         for(final Button t:tiles)t.setOnFocusChangeListener((v,f)->refreshTiles(tiles));
         for(int i=0;i<4;i++){ body.addView(sections[i]); sections[i].setVisibility(i==0?View.VISIBLE:View.GONE); }
         refreshTiles(tiles);
+        sectionArr=sections; tileArr=tiles;
         // buttons.get(0) must stay the network button (networkOperation uses it)
         Button network=button("ネットワーク設定 / .local名・固定IP");secNetwork.addView(network);network.setOnClickListener(v->NetworkSettings.show(this));networkRefresh.postDelayed(refreshNetwork,5000);
         Button host=button(".localの接続名だけ変更");secNetwork.addView(host);host.setOnClickListener(v->NetworkSettings.showName(this));
@@ -117,10 +122,10 @@ public final class MainActivity extends Activity {
             Installer.setSatelliteWithCatv(this,!Installer.satelliteWithCatv(this));refreshSatellite.run();
             execute(satellite,"局一覧を更新しています…（Mirakurunを停止して数十秒で再開します）",()->Installer.refreshChannels(this)+"\n「しない」では、TV本体の衛星スキャンの局（アンテナがないと受信できず、CATV経由のBSと局番号が重なります）を除きます。実際のBS/CSアンテナも使う場合は「する」にしてください。");
         });
-        add(secSetup,"局一覧だけ更新（スキャンなし）",0,()->Installer.refreshChannels(this));
-        note(secSetup,"CATVは同軸を地デジ端子へ接続（BS/CS端子は非対応）。有料放送は契約・B-CAS条件で映らない局があります。初回はMagiskのroot許可が必要です。導入中は電源を切らないでください。");
+        note(secSetup,"CATVは同軸を地デジ端子へ（BS/CS端子は非対応）。初回はMagiskのroot許可が必要です。");
         add(secDaily,"状態を確認",0,()->Installer.command("status"));
         add(secDaily,"ログを表示",0,()->Root.capture("tail -n 60 "+Installer.BASE+"/server.log"));
+        add(secDaily,"局一覧だけ更新（スキャンなし）",0,()->Installer.refreshChannels(this));
         add(secMaint,"停止・自動起動を無効化",0,()-> {
             Root.capture("rm -f "+Installer.BASE+"/enabled");
             String result=Installer.command("stop");
@@ -157,7 +162,7 @@ public final class MainActivity extends Activity {
                 TclPolicy.configure(this,false);
                 return Installer.remove(this);
             })).show());
-        setupButton.requestFocus();
+        tiles[0].requestFocus();
         updateServerState();
     }
 
@@ -183,6 +188,26 @@ public final class MainActivity extends Activity {
         refreshTiles(tiles);
         for(int i=0;i<sections[idx].getChildCount();i++){View c=sections[idx].getChildAt(i);if(c instanceof Button){c.requestFocus();break;}}
     }
+    private void showSectionQuiet(int idx) {
+        if(sectionArr==null||idx==openSection)return;
+        openSection=idx;
+        for(int i=0;i<sectionArr.length;i++)sectionArr[i].setVisibility(i==idx?View.VISIBLE:View.GONE);
+        refreshTiles(tileArr);
+    }
+    private String shortAddress() {
+        String ip=null;
+        try {
+            for(NetworkInterface iface:Collections.list(NetworkInterface.getNetworkInterfaces())){
+                if(!iface.isUp()||iface.isLoopback())continue;
+                for(InetAddress a:Collections.list(iface.getInetAddresses()))
+                    if(a instanceof Inet4Address){ if(iface.getName().startsWith("wlan"))ip=a.getHostAddress(); else if(ip==null)ip=a.getHostAddress(); }
+            }
+        } catch(Exception ignored){}
+        StringBuilder sb=new StringBuilder();
+        sb.append("接続先：").append(ip==null?"ネットワーク未接続":"http://"+ip+":40772/");
+        try { sb.append("\n名前：http://").append(NetworkSettings.load(this).hostname).append(".local:40772/"); } catch(Exception ignored){}
+        return sb.toString();
+    }
     private void updateServerState() {
         if(serverCheckRunning)return; serverCheckRunning=true;
         worker.execute(()->{
@@ -200,6 +225,7 @@ public final class MainActivity extends Activity {
                 sb.setSpan(new android.text.style.ForegroundColorSpan(running?COL_OK:COL_OFF),s,s+1,0);
                 sb.append(running?" 配信中（ポート40772）":" 停止中");
                 serverState.setText(sb);
+                if(!userChoseSection&&!autoSectionDone){autoSectionDone=true;showSectionQuiet(running?1:0);}
             });
         });
     }
