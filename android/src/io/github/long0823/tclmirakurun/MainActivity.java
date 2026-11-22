@@ -4,6 +4,8 @@ import android.app.*;
 import android.os.*;
 import android.content.*;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.view.View;
 import android.widget.*;
 import java.net.*;
 import java.util.*;
@@ -13,23 +15,82 @@ public final class MainActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private TextView output;
     private TextView networkAddresses;
+    private TextView serverState;
     private final Handler networkRefresh=new Handler(Looper.getMainLooper());
-    private final Runnable refreshNetwork=new Runnable(){public void run(){if(networkAddresses!=null)networkAddresses.setText(NetworkSettings.describe(MainActivity.this));networkRefresh.postDelayed(this,5000);}};
+    private int refreshTicks;
+    private final Runnable refreshNetwork=new Runnable(){public void run(){if(networkAddresses!=null)networkAddresses.setText(NetworkSettings.describe(MainActivity.this));if(++refreshTicks%6==0)updateServerState();networkRefresh.postDelayed(this,5000);}};
     private volatile boolean rebootScheduled;
+    private volatile boolean serverCheckRunning;
+    private int openSection=0;
     private final List<Button> buttons=new ArrayList<>();
     interface Operation { String run() throws Exception; }
+    // Material You style palette (dark, teal seed) — same as the 3wave setup app
+    private static final int COL_BG=Color.rgb(13,18,22);
+    private static final int COL_CARD=Color.rgb(27,35,41);
+    private static final int COL_BTN=Color.rgb(38,50,59);
+    private static final int COL_BTN_FOCUS=Color.rgb(52,72,84);
+    private static final int COL_PRIMARY=Color.rgb(11,110,79);
+    private static final int COL_PRIMARY_FOCUS=Color.rgb(16,143,104);
+    private static final int COL_DANGER=Color.rgb(96,34,32);
+    private static final int COL_DANGER_FOCUS=Color.rgb(133,44,40);
+    private static final int COL_TEXT=Color.rgb(227,235,238);
+    private static final int COL_MUTED=Color.rgb(169,188,196);
+    private static final int COL_ACCENT=Color.rgb(125,218,190);
+    private static final int COL_OK=Color.rgb(105,222,155);
+    private static final int COL_OFF=Color.rgb(140,155,163);
+    private int dp(int value) { return (int)(value*getResources().getDisplayMetrics().density+0.5f); }
+    private GradientDrawable shape(int color,int radiusDp,int strokeColor,int strokeDp) {
+        GradientDrawable d=new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(radiusDp));
+        if(strokeDp>0)d.setStroke(dp(strokeDp),strokeColor);
+        return d;
+    }
+    private TextView section(LinearLayout parent,String label) {
+        TextView v=new TextView(this); v.setText(label); v.setTextSize(14); v.setTextColor(COL_ACCENT);
+        v.setPadding(dp(4),dp(10),0,dp(2)); parent.addView(v); return v;
+    }
+    private void note(LinearLayout parent,String value) {
+        TextView v=new TextView(this); v.setText(value); v.setTextSize(13); v.setTextColor(COL_MUTED);
+        v.setPadding(dp(4),dp(2),dp(4),dp(6)); parent.addView(v);
+    }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         ScrollView scroll=new ScrollView(this);
-        LinearLayout body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(48,24,48,24);
+        LinearLayout body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(dp(48),dp(18),dp(48),dp(18)); body.setBackgroundColor(COL_BG);
         scroll.addView(body); setContentView(scroll);
-        TextView title=new TextView(this); title.setText("TCL TV Mirakurun 0.3.0-pre.5 / CATV"); title.setTextSize(30); body.addView(title);
-        TextView description=new TextView(this); description.setText("対応TCL G06・Android 11・Magisk向け\n地デジ・BS/110度CS・CATV（J:COMなど、ISDB-C）/ 2チューナー / ポート40772\nCATVは同軸をTVの「地デジ端子」へ接続してください（BS/CS端子は非対応）。\nCATVの有料放送は契約とB-CASの条件で、映像が出ない局があります。\nMirakurun本体のバージョンは「本体の更新」で確認できます。\n衛星の実受信は未検証のプレリリースです。\n初回はMagiskでrootを許可してください。導入中は電源を切らないでください。"); description.setTextSize(18); body.addView(description);
-        TextView addresses=new TextView(this);networkAddresses=addresses;addresses.setText(NetworkSettings.describe(this)); addresses.setTextSize(20); addresses.setTextColor(Color.rgb(100,210,255)); body.addView(addresses);
-        Button network=button("ネットワーク設定 / .local名・固定IP");body.addView(network);network.setOnClickListener(v->NetworkSettings.show(this));networkRefresh.postDelayed(refreshNetwork,5000);
-        Button host=button(".localの接続名だけ変更");body.addView(host);host.setOnClickListener(v->NetworkSettings.showName(this));
-        add(body,"1. セットアップ / 局更新（完了後に自動再起動）",()-> {
+        TextView title=new TextView(this); title.setText("TCL TV Mirakurun 3波対応版"); title.setTextSize(24); title.setTextColor(Color.WHITE); title.setTypeface(null,android.graphics.Typeface.BOLD); body.addView(title);
+        TextView description=new TextView(this); description.setText("対応TCL G06・Android 11・Magisk向け\n地デジ・BS/110度CS・CATV（ISDB-C）/ 2チューナー / ポート40772"); description.setTextSize(13); description.setTextColor(COL_MUTED); body.addView(description);
+        // ---- Status dashboard card ----
+        LinearLayout dash=new LinearLayout(this); dash.setOrientation(LinearLayout.VERTICAL);
+        dash.setBackground(shape(COL_CARD,20,0,0)); dash.setPadding(dp(20),dp(12),dp(20),dp(12));
+        LinearLayout.LayoutParams dashLp=new LinearLayout.LayoutParams(-1,-2); dashLp.setMargins(0,dp(14),0,dp(4)); body.addView(dash,dashLp);
+        TextView dashLabel=new TextView(this); dashLabel.setText("いまの状態"); dashLabel.setTextSize(13); dashLabel.setTextColor(COL_ACCENT); dash.addView(dashLabel);
+        LinearLayout dashCols=new LinearLayout(this); dashCols.setOrientation(LinearLayout.HORIZONTAL); dash.addView(dashCols);
+        LinearLayout dashL=new LinearLayout(this); dashL.setOrientation(LinearLayout.VERTICAL); dashL.setPadding(0,0,dp(10),0); dashCols.addView(dashL,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout dashR=new LinearLayout(this); dashR.setOrientation(LinearLayout.VERTICAL); dashR.setPadding(dp(10),0,0,0); dashCols.addView(dashR,new LinearLayout.LayoutParams(0,-2,1));
+        serverState=new TextView(this); serverState.setText("Mirakurun：確認中…"); serverState.setTextSize(16); serverState.setTextColor(COL_TEXT); serverState.setPadding(0,dp(6),0,0); dashL.addView(serverState);
+        TextView addresses=new TextView(this);networkAddresses=addresses;addresses.setText(NetworkSettings.describe(this)); addresses.setTextSize(14); addresses.setTextColor(COL_ACCENT); addresses.setTextIsSelectable(true); addresses.setPadding(0,dp(4),0,0); dashL.addView(addresses);
+        output=new TextView(this); output.setTextSize(13); output.setTextColor(Color.WHITE); output.setPadding(0,dp(6),0,dp(2));
+        output.setText("セットアップ完了後はTVを自動再起動し、Mirakurunを起動します。\nCATVを使う場合は、起動後に「3. CATVをスキャン・局更新」を実行してください（約5〜10分、進行状況をここに表示します）。\n既存のBonDriver・IPTVとの同じチューナーの同時利用は避けてください。"); dashR.addView(output);
+        // ---- Sections (containers first; buttons are created in the original order) ----
+        LinearLayout secSetup=new LinearLayout(this); secSetup.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout secDaily=new LinearLayout(this); secDaily.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout secNetwork=new LinearLayout(this); secNetwork.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout secMaint=new LinearLayout(this); secMaint.setOrientation(LinearLayout.VERTICAL);
+        final LinearLayout[] sections={secSetup,secDaily,secNetwork,secMaint};
+        final Button[] tiles=new Button[4];
+        LinearLayout grid=new LinearLayout(this); grid.setOrientation(LinearLayout.VERTICAL); body.addView(grid);
+        LinearLayout grow1=new LinearLayout(this); grow1.setOrientation(LinearLayout.HORIZONTAL); grid.addView(grow1);
+        LinearLayout grow2=new LinearLayout(this); grow2.setOrientation(LinearLayout.HORIZONTAL); grid.addView(grow2);
+        String[] catNames={"セットアップ","ふだんの操作","ネットワーク","メンテナンス"};
+        for(int i=0;i<4;i++){ final int idx=i; tiles[i]=tileButton(idx<2?grow1:grow2,catNames[i],()->showSection(sections,tiles,idx)); }
+        for(final Button t:tiles)t.setOnFocusChangeListener((v,f)->refreshTiles(tiles));
+        for(int i=0;i<4;i++){ body.addView(sections[i]); sections[i].setVisibility(i==0?View.VISIBLE:View.GONE); }
+        refreshTiles(tiles);
+        // buttons.get(0) must stay the network button (networkOperation uses it)
+        Button network=button("ネットワーク設定 / .local名・固定IP");secNetwork.addView(network);network.setOnClickListener(v->NetworkSettings.show(this));networkRefresh.postDelayed(refreshNetwork,5000);
+        Button host=button(".localの接続名だけ変更");secNetwork.addView(host);host.setOnClickListener(v->NetworkSettings.showName(this));
+        Button setupButton=add(secSetup,"1. セットアップ / 局更新（完了後に自動再起動）",1,()-> {
             String result=Installer.configure(this);
             TclPolicy.configure(this,true);
             getSharedPreferences(NetworkService.PREFS,0).edit().putBoolean("enabled",true).commit();
@@ -39,7 +100,7 @@ public final class MainActivity extends Activity {
             rebootScheduled=true;
             return result+"\n5秒後にTVを自動再起動します。再起動後はMirakurunを自動起動します。";
         });
-        add(body,"2. 起動・自動起動を有効化",()-> {
+        add(secSetup,"2. 起動・自動起動を有効化",0,()-> {
             String result=Installer.command("start");
             TclPolicy.configure(this,true);
             Root.capture("touch "+Installer.BASE+"/enabled");
@@ -48,17 +109,19 @@ public final class MainActivity extends Activity {
             Installer.waitReady();
             return result+"\n"+urls();
         });
-        add(body,"3. CATVをスキャン・局更新（Mirakurunを自動で停止し、完了後に再開）",()->Installer.scanCatv(this,text->runOnUiThread(()->{if(!isFinishing())output.setText(text);})));
-        Button satellite=button("");body.addView(satellite);
-        Runnable refreshSatellite=()->satellite.setText("衛星（BS/CS）の局もCATVと併用する： "+(Installer.satelliteWithCatv(this)?"する":"しない（初期値）"));
+        add(secSetup,"3. CATVをスキャン・局更新",0,()->Installer.scanCatv(this,text->runOnUiThread(()->{if(!isFinishing())output.setText(text);})));
+        Button satellite=button("");secSetup.addView(satellite);
+        Runnable refreshSatellite=()->satellite.setText("衛星（BS/CS）もCATVと併用： "+(Installer.satelliteWithCatv(this)?"する":"しない"));
         refreshSatellite.run();
         satellite.setOnClickListener(v->{
             Installer.setSatelliteWithCatv(this,!Installer.satelliteWithCatv(this));refreshSatellite.run();
             execute(satellite,"局一覧を更新しています…（Mirakurunを停止して数十秒で再開します）",()->Installer.refreshChannels(this)+"\n「しない」では、TV本体の衛星スキャンの局（アンテナがないと受信できず、CATV経由のBSと局番号が重なります）を除きます。実際のBS/CSアンテナも使う場合は「する」にしてください。");
         });
-        add(body,"局一覧だけ更新（スキャンなし）",()->Installer.refreshChannels(this));
-        add(body,"状態を確認",()->Installer.command("status"));
-        add(body,"停止・自動起動を無効化",()-> {
+        add(secSetup,"局一覧だけ更新（スキャンなし）",0,()->Installer.refreshChannels(this));
+        note(secSetup,"CATVは同軸を地デジ端子へ接続（BS/CS端子は非対応）。有料放送は契約・B-CAS条件で映らない局があります。初回はMagiskのroot許可が必要です。導入中は電源を切らないでください。");
+        add(secDaily,"状態を確認",0,()->Installer.command("status"));
+        add(secDaily,"ログを表示",0,()->Root.capture("tail -n 60 "+Installer.BASE+"/server.log"));
+        add(secMaint,"停止・自動起動を無効化",0,()-> {
             Root.capture("rm -f "+Installer.BASE+"/enabled");
             String result=Installer.command("stop");
             getSharedPreferences(NetworkService.PREFS,0).edit().putBoolean("enabled",false).commit();
@@ -66,8 +129,7 @@ public final class MainActivity extends Activity {
             TclPolicy.configure(this,false);
             return result;
         });
-        add(body,"ログを表示",()->Root.capture("tail -n 60 "+Installer.BASE+"/server.log"));
-        Button coreUpdate=button("Mirakurun本体の更新を確認");body.addView(coreUpdate);
+        Button coreUpdate=button("Mirakurun本体の更新を確認");secMaint.addView(coreUpdate);
         coreUpdate.setOnClickListener(v->execute(coreUpdate,"Mirakurun本体と公式npmの更新情報を確認しています…",()->{
             CoreUpdate.Info info=CoreUpdate.check(this);
             runOnUiThread(()->{
@@ -80,9 +142,9 @@ public final class MainActivity extends Activity {
             });
             return info.summary();
         }));
-        add(body,"Mirakurun本体・依存パッケージのライセンス",()->CoreUpdate.licenses());
-        add(body,"本体更新のログを表示",()->Root.capture("tail -n 100 "+Installer.BASE+"/core-update.log"));
-        Button remove=button("環境を削除"); body.addView(remove);
+        add(secMaint,"Mirakurun本体・依存パッケージのライセンス",0,()->CoreUpdate.licenses());
+        add(secMaint,"本体更新のログを表示",0,()->Root.capture("tail -n 100 "+Installer.BASE+"/core-update.log"));
+        Button remove=button("環境を削除",2); secMaint.addView(remove);
         remove.setOnClickListener(view->new AlertDialog.Builder(this)
             .setTitle("Mirakurun環境を削除しますか？")
             .setMessage("Mirakurun本体・局設定・番組DB・ログ・自動起動を削除します。既存のBonDriver環境は保持します。このアプリが導入したチューナー設定は復元します。アプリ自体は残ります。")
@@ -95,22 +157,71 @@ public final class MainActivity extends Activity {
                 TclPolicy.configure(this,false);
                 return Installer.remove(this);
             })).show());
-        output=new TextView(this); output.setTextSize(17); output.setText("セットアップ完了後はTVを自動再起動し、Mirakurunを起動します。\nCATVを使う場合は、起動後に「3. CATVをスキャン・局更新」を実行してください（約5〜10分、進行状況を表示します）。\n既存のBonDriver・IPTVとの同じチューナーの同時利用は避けてください。"); body.addView(output);
-        buttons.get(0).requestFocus();
+        setupButton.requestFocus();
+        updateServerState();
     }
 
-    private Button button(String label) {
+    private Button tileButton(LinearLayout parent,String label,Runnable click) {
+        Button item=new Button(this); item.setText(label);
+        item.setTextSize(17); item.setAllCaps(false); item.setFocusable(true); item.setMinHeight(dp(54)); item.setPadding(dp(20),0,dp(20),0);
+        item.setTextColor(Color.WHITE); item.setBackground(shape(COL_BTN,16,0,0));
+        item.setOnClickListener(v->click.run());
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.setMargins(dp(3),dp(3),dp(3),dp(3)); item.setLayoutParams(lp);
+        parent.addView(item);
+        return item;
+    }
+    private void refreshTiles(Button[] tiles) {
+        for(int i=0;i<tiles.length;i++){
+            boolean open=i==openSection,foc=tiles[i].hasFocus();
+            int bg=open?COL_PRIMARY:(foc?COL_BTN_FOCUS:COL_BTN);
+            tiles[i].setBackground(shape(bg,16,(foc||open)?Color.WHITE:0,(foc||open)?2:0));
+        }
+    }
+    private void showSection(LinearLayout[] sections,Button[] tiles,int idx) {
+        openSection=idx;
+        for(int i=0;i<sections.length;i++)sections[i].setVisibility(i==idx?View.VISIBLE:View.GONE);
+        refreshTiles(tiles);
+        for(int i=0;i<sections[idx].getChildCount();i++){View c=sections[idx].getChildAt(i);if(c instanceof Button){c.requestFocus();break;}}
+    }
+    private void updateServerState() {
+        if(serverCheckRunning)return; serverCheckRunning=true;
+        worker.execute(()->{
+            boolean up=false;
+            try {
+                HttpURLConnection conn=(HttpURLConnection)new URL("http://127.0.0.1:40772/api/status").openConnection();
+                conn.setConnectTimeout(1500); conn.setReadTimeout(1500);
+                up=conn.getResponseCode()==200; conn.disconnect();
+            } catch(Exception ignored){}
+            final boolean running=up;
+            runOnUiThread(()->{ serverCheckRunning=false; if(isFinishing()||serverState==null)return;
+                android.text.SpannableStringBuilder sb=new android.text.SpannableStringBuilder();
+                sb.append("Mirakurun：");
+                int s=sb.length(); sb.append("●");
+                sb.setSpan(new android.text.style.ForegroundColorSpan(running?COL_OK:COL_OFF),s,s+1,0);
+                sb.append(running?" 配信中（ポート40772）":" 停止中");
+                serverState.setText(sb);
+            });
+        });
+    }
+
+    // style: 0=normal, 1=primary, 2=danger
+    private Button button(String label) { return button(label,0); }
+    private Button button(String label,int style) {
+        final int base=style==1?COL_PRIMARY:(style==2?COL_DANGER:COL_BTN);
+        final int focus=style==1?COL_PRIMARY_FOCUS:(style==2?COL_DANGER_FOCUS:COL_BTN_FOCUS);
         Button item=new Button(this); item.setText(label); buttons.add(item);
-        float density=getResources().getDisplayMetrics().density;
-        item.setTextSize(20); item.setMinHeight((int)(64*density+0.5f)); item.setPadding((int)(24*density+0.5f),0,(int)(24*density+0.5f),0);
-        item.setTextColor(Color.WHITE); item.setBackgroundColor(Color.rgb(52,58,64));
-        item.setOnFocusChangeListener((view,focus)->((Button)view).setBackgroundColor(focus?Color.rgb(35,110,200):Color.rgb(52,58,64)));
+        item.setTextSize(16); item.setAllCaps(false); item.setFocusable(true); item.setMinHeight(dp(44)); item.setPadding(dp(20),0,dp(20),0);
+        item.setTextColor(Color.WHITE); item.setBackground(shape(base,16,0,0));
+        item.setOnFocusChangeListener((view,hasFocus)->((Button)view).setBackground(shape(hasFocus?focus:base,16,hasFocus?Color.WHITE:0,hasFocus?2:0)));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(3),0,dp(3)); item.setLayoutParams(lp);
         return item;
     }
 
-    private void add(LinearLayout body,String label,Operation op) {
-        Button button=button(label); body.addView(button);
+    private Button add(LinearLayout body,String label,Operation op) { return add(body,label,0,op); }
+    private Button add(LinearLayout body,String label,int style,Operation op) {
+        Button button=button(label,style); body.addView(button);
         button.setOnClickListener(view->execute(button,op));
+        return button;
     }
 
     private void execute(Button selected,Operation op) {
@@ -124,7 +235,7 @@ public final class MainActivity extends Activity {
                 String text;
                 try { text=op.run(); } catch(Exception e) { text="処理に失敗しました\n"+e.getMessage(); }
                 final String result=text;
-                runOnUiThread(()-> { if(isFinishing())return; output.setText(result); for(Button item:buttons)item.setEnabled(!rebootScheduled); if(!rebootScheduled)selected.requestFocus(); });
+                runOnUiThread(()-> { if(isFinishing())return; output.setText(result); for(Button item:buttons)item.setEnabled(!rebootScheduled); if(!rebootScheduled)selected.requestFocus(); updateServerState(); });
             });
     }
 
@@ -138,5 +249,6 @@ public final class MainActivity extends Activity {
         return result.toString().trim();
     }
     void networkOperation(Operation operation){execute(buttons.get(0),operation);}
+    @Override protected void onResume(){super.onResume();updateServerState();}
     @Override public void onDestroy(){networkRefresh.removeCallbacks(refreshNetwork);worker.shutdown();super.onDestroy();}
 }
