@@ -38,7 +38,7 @@ public final class MainActivity extends Activity {
     private static final int COL_DANGER=Color.rgb(96,34,32);
     private static final int COL_DANGER_FOCUS=Color.rgb(133,44,40);
     private static final int COL_TEXT=Color.rgb(227,235,238);
-    private static final int COL_MUTED=Color.rgb(169,188,196);
+    private static final int COL_MUTED=Color.rgb(192,208,215);
     private static final int COL_ACCENT=Color.rgb(125,218,190);
     private static final int COL_OK=Color.rgb(105,222,155);
     private static final int COL_OFF=Color.rgb(140,155,163);
@@ -53,7 +53,7 @@ public final class MainActivity extends Activity {
         v.setPadding(dp(4),dp(10),0,dp(2)); parent.addView(v); return v;
     }
     private void note(LinearLayout parent,String value) {
-        TextView v=new TextView(this); v.setText(value); v.setTextSize(13); v.setTextColor(COL_MUTED);
+        TextView v=new TextView(this); v.setText(value); v.setTextSize(14); v.setTextColor(COL_MUTED);
         v.setPadding(dp(4),dp(2),dp(4),dp(6)); parent.addView(v);
     }
 
@@ -62,20 +62,20 @@ public final class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this);
         LinearLayout body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(dp(48),dp(18),dp(48),dp(18)); body.setBackgroundColor(COL_BG);
         scroll.addView(body); setContentView(scroll);
-        TextView title=new TextView(this); title.setText("TCL TV Mirakurun 3波対応版"); title.setTextSize(24); title.setTextColor(Color.WHITE); title.setTypeface(null,android.graphics.Typeface.BOLD); body.addView(title);
-        TextView description=new TextView(this); description.setText("対応TCL G06・Android 11・Magisk向け\n地デジ・BS/110度CS・CATV（ISDB-C）/ 2チューナー / ポート40772"); description.setTextSize(13); description.setTextColor(COL_MUTED); body.addView(description);
+        TextView title=new TextView(this); title.setText("TCL TV Mirakurun 3波対応版"); title.setTextSize(26); title.setTextColor(Color.WHITE); title.setTypeface(null,android.graphics.Typeface.BOLD); body.addView(title);
+        TextView description=new TextView(this); description.setText("対応TCL G06・Android 11・Magisk向け"); description.setTextSize(14); description.setTextColor(COL_MUTED); body.addView(description);
         // ---- Status dashboard card ----
         LinearLayout dash=new LinearLayout(this); dash.setOrientation(LinearLayout.VERTICAL);
         dash.setBackground(shape(COL_CARD,20,0,0)); dash.setPadding(dp(20),dp(12),dp(20),dp(12));
         LinearLayout.LayoutParams dashLp=new LinearLayout.LayoutParams(-1,-2); dashLp.setMargins(0,dp(14),0,dp(4)); body.addView(dash,dashLp);
-        TextView dashLabel=new TextView(this); dashLabel.setText("いまの状態"); dashLabel.setTextSize(13); dashLabel.setTextColor(COL_ACCENT); dash.addView(dashLabel);
+        TextView dashLabel=new TextView(this); dashLabel.setText("いまの状態"); dashLabel.setTextSize(14); dashLabel.setTextColor(COL_ACCENT); dash.addView(dashLabel);
         LinearLayout dashCols=new LinearLayout(this); dashCols.setOrientation(LinearLayout.HORIZONTAL); dash.addView(dashCols);
         LinearLayout dashL=new LinearLayout(this); dashL.setOrientation(LinearLayout.VERTICAL); dashL.setPadding(0,0,dp(10),0); dashCols.addView(dashL,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout dashR=new LinearLayout(this); dashR.setOrientation(LinearLayout.VERTICAL); dashR.setPadding(dp(10),0,0,0); dashCols.addView(dashR,new LinearLayout.LayoutParams(0,-2,1));
-        serverState=new TextView(this); serverState.setText("Mirakurun：確認中…"); serverState.setTextSize(16); serverState.setTextColor(COL_TEXT); serverState.setPadding(0,dp(6),0,0); dashL.addView(serverState);
-        TextView addresses=new TextView(this);networkAddresses=addresses;addresses.setText(shortAddress()); addresses.setTextSize(14); addresses.setTextColor(COL_ACCENT); addresses.setTextIsSelectable(true); addresses.setPadding(0,dp(4),0,0); dashL.addView(addresses);
-        output=new TextView(this); output.setTextSize(13); output.setTextColor(Color.WHITE); output.setPadding(0,dp(6),0,dp(2));
-        output.setText("セットアップ完了後はTVを自動再起動し、Mirakurunを起動します。\nCATVを使う場合は、起動後に「3. CATVをスキャン・局更新」を実行してください。"); dashR.addView(output);
+        serverState=new TextView(this); serverState.setText("Mirakurun：確認中…"); serverState.setTextSize(19); serverState.setTypeface(null,android.graphics.Typeface.BOLD); serverState.setTextColor(COL_TEXT); serverState.setPadding(0,dp(6),0,0); dashL.addView(serverState);
+        TextView addresses=new TextView(this);networkAddresses=addresses;addresses.setText(shortAddress()); addresses.setTextSize(16); addresses.setTextColor(COL_ACCENT); addresses.setTextIsSelectable(true); addresses.setLineSpacing(0,1.3f); addresses.setPadding(0,dp(4),0,0); dashL.addView(addresses);
+        output=new TextView(this); output.setTextSize(14); output.setLineSpacing(0,1.15f); output.setTextColor(Color.WHITE); output.setPadding(0,dp(6),0,dp(2));
+        output.setText("セットアップ完了後はTVを自動再起動し、Mirakurunを起動します。CATVは起動後に「3. CATVをスキャン・局更新」を実行してください。"); dashR.addView(output);
         // ---- Sections (containers first; buttons are created in the original order) ----
         LinearLayout secSetup=new LinearLayout(this); secSetup.setOrientation(LinearLayout.VERTICAL);
         LinearLayout secDaily=new LinearLayout(this); secDaily.setOrientation(LinearLayout.VERTICAL);
@@ -168,7 +168,7 @@ public final class MainActivity extends Activity {
 
     private Button tileButton(LinearLayout parent,String label,Runnable click) {
         Button item=new Button(this); item.setText(label);
-        item.setTextSize(17); item.setAllCaps(false); item.setFocusable(true); item.setMinHeight(dp(54)); item.setPadding(dp(20),0,dp(20),0);
+        item.setTextSize(19); item.setAllCaps(false); item.setFocusable(true); item.setMinHeight(dp(50)); item.setPadding(dp(20),0,dp(20),0);
         item.setTextColor(Color.WHITE); item.setBackground(shape(COL_BTN,16,0,0));
         item.setOnClickListener(v->click.run());
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.setMargins(dp(3),dp(3),dp(3),dp(3)); item.setLayoutParams(lp);
@@ -236,7 +236,7 @@ public final class MainActivity extends Activity {
         final int base=style==1?COL_PRIMARY:(style==2?COL_DANGER:COL_BTN);
         final int focus=style==1?COL_PRIMARY_FOCUS:(style==2?COL_DANGER_FOCUS:COL_BTN_FOCUS);
         Button item=new Button(this); item.setText(label); buttons.add(item);
-        item.setTextSize(16); item.setAllCaps(false); item.setFocusable(true); item.setMinHeight(dp(44)); item.setPadding(dp(20),0,dp(20),0);
+        item.setTextSize(18); item.setAllCaps(false); item.setFocusable(true); item.setMinHeight(dp(48)); item.setPadding(dp(20),0,dp(20),0);
         item.setTextColor(Color.WHITE); item.setBackground(shape(base,16,0,0));
         item.setOnFocusChangeListener((view,hasFocus)->((Button)view).setBackground(shape(hasFocus?focus:base,16,hasFocus?Color.WHITE:0,hasFocus?2:0)));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(3),0,dp(3)); item.setLayoutParams(lp);
