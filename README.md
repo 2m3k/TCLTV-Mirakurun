@@ -1,8 +1,10 @@
-# TCLTV-Mirakurun
+# TCLTV-Mirakurun-3wave
 
-## このフォークについて（3波対応デーモン v26 同梱版）
+## このフォークについて（3波対応デーモン v27 同梱版）
 
-このフォークは、本家 TCLTV-Mirakurun v0.3.0-pre.5 のAPKに同梱されている配信デーモン（libtsd.so）を、[2m3k/TCLTV-Bondriver-3wave](https://github.com/2m3k/TCLTV-Bondriver-3wave) のデーモン **v26（リリースビルド）** に差し替えたものです。アプリ本体とMirakurunサーバーは本家 pre.5 のままです。配布は Releases のAPKです。
+このフォークは、本家 TCLTV-Mirakurun v0.3.0-pre.5 のAPKに同梱されている配信デーモン（libtsd.so）を、[2m3k/TCLTV-Bondriver-3wave](https://github.com/2m3k/TCLTV-Bondriver-3wave) のデーモン **v27（リリースビルド）** に差し替えたものです。アプリ本体とMirakurunサーバーは本家 pre.5 のままです。配布は Releases のAPKです。
+
+v27では、2系統目（チューナー1）での衛星EPG収集を許可し、BS/CSの番組情報（XMLTV用EPG）が取れるようになりました（v26までの変更はすべて含まれます）。
 
 本家のデーモンでは、TCL 32S5400 の実機で以下の問題がありました。
 
