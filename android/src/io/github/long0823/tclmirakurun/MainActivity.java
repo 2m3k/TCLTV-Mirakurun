@@ -283,7 +283,7 @@ public final class MainActivity extends Activity {
             });
     }
 
-    private static final String APP_RELEASE="0.3.2";
+    private static final String APP_RELEASE="0.3.3";
     private String selfUpdateApp(String apkUrl,String tag) throws Exception {
         java.io.File dir=new java.io.File(getFilesDir(),"update"); if(!dir.isDirectory())dir.mkdirs();
         java.io.File apk=new java.io.File(dir,"update.apk");
@@ -292,13 +292,15 @@ public final class MainActivity extends Activity {
         if(conn.getResponseCode()!=200){conn.disconnect();throw new java.io.IOException("HTTP "+conn.getResponseCode());}
         try(java.io.InputStream in=conn.getInputStream(); java.io.OutputStream out=new java.io.FileOutputStream(apk)){byte[] b=new byte[65536];int n;while((n=in.read(b))>0)out.write(b,0,n);}
         conn.disconnect();
+        if(apk.length()<1000000)throw new java.io.IOException("ダウンロードに失敗しました");
         boolean daemonSwapped=false;
         try(java.util.zip.ZipFile zf=new java.util.zip.ZipFile(apk)){
             java.util.zip.ZipEntry e=zf.getEntry("assets/libtsd.so");
             if(e!=null){
                 java.io.File daemon=new java.io.File(dir,"libtsd.so");
                 try(java.io.InputStream in=zf.getInputStream(e); java.io.OutputStream out=new java.io.FileOutputStream(daemon)){byte[] b=new byte[65536];int n;while((n=in.read(b))>0)out.write(b,0,n);}
-                Root.capture("cp /data/local/tmp/libtsd.so /data/local/tmp/libtsd_backup.so && cp "+daemon.getAbsolutePath()+" /data/local/tmp/libtsd.so");
+                if(daemon.length()<10000)throw new java.io.IOException("デーモンの抽出に失敗しました");
+                Root.capture("cp /data/local/tmp/libtsd.so /data/local/tmp/libtsd_backup.so && cp "+daemon.getAbsolutePath()+" /data/local/tmp/libtsd.new.so && chmod 755 /data/local/tmp/libtsd.new.so && chcon u:object_r:vendor_file:s0 /data/local/tmp/libtsd.new.so && mv /data/local/tmp/libtsd.new.so /data/local/tmp/libtsd.so");
                 daemonSwapped=true;
             }
         }
