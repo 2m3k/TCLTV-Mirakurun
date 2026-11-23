@@ -147,6 +147,23 @@ public final class MainActivity extends Activity {
             });
             return info.summary();
         }));
+        Button appUpdate=button("アプリの更新を確認");secMaint.addView(appUpdate);
+        appUpdate.setOnClickListener(v->execute(appUpdate,"アプリの更新情報を確認しています…",()->{
+            String[] info=fetchLatestAppRelease();
+            runOnUiThread(()->{
+                if(isFinishing())return;
+                AlertDialog.Builder dialog=new AlertDialog.Builder(this).setTitle("アプリの更新確認");
+                if(info==null){dialog.setMessage("更新情報を取得できませんでした。インターネット接続を確認してください。\n現在のアプリ：v"+APP_RELEASE+"（同梱デーモン：v28）");dialog.setPositiveButton("閉じる",null);}
+                else{
+                    boolean newer=compareVersion(info[0],"v"+APP_RELEASE)>0;
+                    dialog.setMessage("現在のアプリ：v"+APP_RELEASE+"（同梱デーモン：v28）\n最新のリリース："+info[0]+"\n"+(newer?"新しいバージョンがあります。リリースページから新しいAPKを入手できます。":"最新です。"));
+                    dialog.setNegativeButton("閉じる",null);
+                    if(newer){final String u=info[1];dialog.setPositiveButton("リリースページを開く",(d,w)->{try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(u)));}catch(Exception ignored){}});}
+                }
+                dialog.show();
+            });
+            return info==null?"アプリの更新情報を取得できませんでした":"最新のリリース："+info[0]+"（現在のアプリ：v"+APP_RELEASE+"）";
+        }));
         add(secMaint,"Mirakurun本体・依存パッケージのライセンス",0,()->CoreUpdate.licenses());
         add(secMaint,"本体更新のログを表示",0,()->Root.capture("tail -n 100 "+Installer.BASE+"/core-update.log"));
         Button remove=button("環境を削除",2); secMaint.addView(remove);
@@ -265,6 +282,32 @@ public final class MainActivity extends Activity {
             });
     }
 
+    private static final String APP_RELEASE="0.3.1";
+    private String[] fetchLatestAppRelease() {
+        try {
+            HttpURLConnection conn=(HttpURLConnection)new URL("https://api.github.com/repos/2m3k/TCLTV-Mirakurun-3wave/releases?per_page=1").openConnection();
+            conn.setConnectTimeout(10000); conn.setReadTimeout(10000); conn.setRequestProperty("User-Agent","tclmirakurun-3wave-update-check");
+            if(conn.getResponseCode()!=200){conn.disconnect();return null;}
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream(); byte[] buf=new byte[4096]; int n;
+            try(java.io.InputStream in=conn.getInputStream()){while((n=in.read(buf))>0)out.write(buf,0,n);}
+            conn.disconnect();
+            org.json.JSONArray releases=new org.json.JSONArray(out.toString("UTF-8"));
+            if(releases.length()==0)return null;
+            org.json.JSONObject rel=releases.getJSONObject(0);
+            return new String[]{rel.getString("tag_name"),rel.getString("html_url")};
+        } catch(Exception e) { return null; }
+    }
+    private static int compareVersion(String a,String b) {
+        int[] x=versionParts(a),y=versionParts(b);
+        for(int i=0;i<3;i++){if(x[i]!=y[i])return x[i]<y[i]?-1:1;}
+        return 0;
+    }
+    private static int[] versionParts(String v) {
+        int[] parts=new int[3]; if(v==null)return parts;
+        String s=v.startsWith("v")?v.substring(1):v; String[] seg=s.split("\\.");
+        for(int i=0;i<seg.length&&i<3;i++){int num=0;for(int j=0;j<seg[i].length();j++){char c=seg[i].charAt(j);if(c<'0'||c>'9')break;num=num*10+(c-'0');}parts[i]=num;}
+        return parts;
+    }
     private String urls() {
         StringBuilder result=new StringBuilder("接続先（同じLAN内のブラウザーから）\n");
         try {
