@@ -153,10 +153,10 @@ public final class MainActivity extends Activity {
             runOnUiThread(()->{
                 if(isFinishing())return;
                 AlertDialog.Builder dialog=new AlertDialog.Builder(this).setTitle("アプリの更新確認");
-                if(info==null){dialog.setMessage("更新情報を取得できませんでした。インターネット接続を確認してください。\n現在のアプリ：v"+APP_RELEASE+"（同梱デーモン：v28）");dialog.setPositiveButton("閉じる",null);}
+                if(info==null){dialog.setMessage("更新情報を取得できませんでした。インターネット接続を確認してください。\n現在のアプリ：v"+APP_RELEASE+"（同梱デーモン：v31）");dialog.setPositiveButton("閉じる",null);}
                 else{
                     boolean newer=compareVersion(info[0],"v"+APP_RELEASE)>0;
-                    dialog.setMessage("現在のアプリ：v"+APP_RELEASE+"（同梱デーモン：v28）\n最新のリリース："+info[0]+"\n"+(newer?"新しいバージョンがあります。「更新する」を押すと、そのままダウンロードして入れ替えます（デーモンも同時に更新され、反映には再起動が必要です）。":"最新です。"));
+                    dialog.setMessage("現在のアプリ：v"+APP_RELEASE+"（同梱デーモン：v31）\n最新のリリース："+info[0]+"\n"+(newer?"新しいバージョンがあります。「更新する」を押すと、そのままダウンロードして入れ替えます（デーモンも同時に更新され、反映には再起動が必要です）。":"最新です。"));
                     dialog.setNegativeButton("閉じる",null);
                     if(newer&&info[2]!=null){final String au=info[2];dialog.setPositiveButton("更新する",(d,w)->execute(appUpdate,"アプリを更新しています。ダウンロードと入れ替えを行います。数分かかることがあります。",()->selfUpdateApp(au,info[0])));dialog.setNeutralButton("リリースページを開く",(d,w)->{try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(info[1])));}catch(Exception ignored){}});}
                     else if(newer){final String u=info[1];dialog.setPositiveButton("リリースページを開く",(d,w)->{try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(u)));}catch(Exception ignored){}});}
@@ -283,7 +283,7 @@ public final class MainActivity extends Activity {
             });
     }
 
-    private static final String APP_RELEASE="0.3.4";
+    private static final String APP_RELEASE="0.3.5";
     private String selfUpdateApp(String apkUrl,String tag) throws Exception {
         java.io.File dir=new java.io.File(getFilesDir(),"update"); if(!dir.isDirectory())dir.mkdirs();
         java.io.File apk=new java.io.File(dir,"update.apk");

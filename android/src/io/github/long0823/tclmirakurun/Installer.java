@@ -38,8 +38,8 @@ final class Installer {
         JSONArray channels = new JSONArray();
         for (ChannelCatalog.Channel scanned : ChannelCatalog.parse(rows,includeSatellite(context,rows))) {
             JSONObject channel = new JSONObject();
-            channel.put("name", scanned.name);channel.put("type", scanned.type);
-            channel.put("channel", scanned.channel);channel.put("isDisabled", isUnreceivable(scanned));
+            channel.put("name", displayName(scanned));channel.put("type", scanned.type);
+            channel.put("channel", remapChannel(scanned));channel.put("isDisabled", isUnreceivable(scanned));
             channels.put(channel);
         }
         write(new File(stage,"channels.yml"), channels.toString(2));
@@ -65,11 +65,32 @@ final class Installer {
     private static final Set<String> UNRECEIVABLE = new HashSet<>(Arrays.asList(
         "GR:31938_31938_52247", "GR:31941_31941_52271",
         "BS:4_16433_103", "BS:4_16433_104", "BS:4_16592_144", "BS:4_16401_169",
-        "BS:4_16402_179", "BS:4_16593_188", "BS:4_16593_189", "BS:4_16529_200",
-        "BS:4_16626_202", "BS:4_18098_231", "BS:4_18098_232", "BS:4_18130_236",
-        "BS:4_18099_251", "BS:4_18802_263"));
+        "BS:4_16402_179", "BS:4_16593_188", "BS:4_16593_189",
+        "BS:4_16626_202", "BS:4_18802_263"));
     static boolean isUnreceivable(ChannelCatalog.Channel channel) {
-        return UNRECEIVABLE.contains(channel.type + ":" + channel.channel);
+        return UNRECEIVABLE.contains(channel.type + ":" + remapChannel(channel));
+    }
+    /** The TV channel database is a factory preset that predates the 2024
+        BS band reorganization and the 2025 BS10 renewal, so five services
+        carry stale transport_stream_ids. Generated channel lists remap
+        them to the current triplets (verified on air 2026-11-24).
+        Keys and values are channel strings (onid_tsid_sid). */
+    private static final Map<String,String> TRIPLET_REMAP = new HashMap<>();
+    static {
+        TRIPLET_REMAP.put("4_18130_236", "4_17969_236");
+        TRIPLET_REMAP.put("4_18099_251", "4_17970_251");
+        TRIPLET_REMAP.put("4_18098_231", "4_18130_231");
+        TRIPLET_REMAP.put("4_18098_232", "4_18130_232");
+        TRIPLET_REMAP.put("4_16529_200", "4_18675_200");
+    }
+    static String remapChannel(ChannelCatalog.Channel channel) {
+        String mapped = TRIPLET_REMAP.get(channel.channel);
+        return mapped != null ? mapped : channel.channel;
+    }
+    static String displayName(ChannelCatalog.Channel channel) {
+        // The service on 4_18675_200 is BS10; the preset still calls it Star Channel 1.
+        if ("4_18675_200".equals(remapChannel(channel))) return "ＢＳ１０";
+        return channel.name;
     }
     /** Satellite BS/CS entries from the TV database are kept only when there is no CATV list, or when the user asked for both. */
     static boolean includeSatellite(Context context,String rows){
@@ -121,7 +142,7 @@ final class Installer {
         String tunersTarget=BASE+"/rootfs/usr/local/etc/mirakurun/tuners.yml";
         Root.capture("cp "+Root.quote(tuners.getAbsolutePath())+" "+tunersTarget+".new && chmod 600 "+tunersTarget+".new && mv "+tunersTarget+".new "+tunersTarget);
         String rows=CatvCatalog.rows(CatvCatalog.read(Root::capture))+Root.capture("content query --uri content://android.media.tv/channel --projection original_network_id:transport_stream_id:service_id:type:service_type:browsable:display_name");
-        JSONArray channels=new JSONArray();for(ChannelCatalog.Channel scanned:ChannelCatalog.parse(rows,includeSatellite(context,rows))){JSONObject channel=new JSONObject();channel.put("name",scanned.name);channel.put("type",scanned.type);channel.put("channel",scanned.channel);channel.put("isDisabled",isUnreceivable(scanned));channels.put(channel);}
+        JSONArray channels=new JSONArray();for(ChannelCatalog.Channel scanned:ChannelCatalog.parse(rows,includeSatellite(context,rows))){JSONObject channel=new JSONObject();channel.put("name",displayName(scanned));channel.put("type",scanned.type);channel.put("channel",remapChannel(scanned));channel.put("isDisabled",isUnreceivable(scanned));channels.put(channel);}
         File file=new File(context.getCacheDir(),"catv-mirakurun-channels.json");write(file,channels.toString(2));
         String target=BASE+"/rootfs/usr/local/etc/mirakurun/channels.yml";
         Root.capture("cp "+Root.quote(file.getAbsolutePath())+" "+target+".new && mv "+target+".new "+target);
