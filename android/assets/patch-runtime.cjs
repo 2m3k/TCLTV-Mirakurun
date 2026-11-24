@@ -110,3 +110,20 @@ function isManagedLocalAddress(addr) {
     fs.writeFileSync(systemPath, system);
 }
 console.log('Applied live subnet allowance; public and off-subnet clients remain blocked');
+
+// Mirakurun's /api/version awaits an npm registry lookup that never
+// completes inside the TV's chroot, so the endpoint hangs and clients
+// (e.g. KonomiTV's backend check) time out. Answer with the bundled
+// version instead; the response's "current" field already carries it.
+const versionPath = prefix + '/node_modules/mirakurun/lib/Mirakurun/api/version.js';
+let versionSource = fs.readFileSync(versionPath, 'utf8');
+const versionMarker = '// TCLTV-Mirakurun: bundled version response';
+if (!versionSource.includes(versionMarker) && !versionSource.includes('latest: pkg.version')) {
+    const hangingForms = ['latest: await (0, system_1.getLatestVersion)()', 'latest: await getLatestVersion()'];
+    const hangingForm = hangingForms.find(form => versionSource.includes(form));
+    if (!hangingForm) throw new Error('Unsupported Mirakurun version endpoint implementation');
+    if (!fs.existsSync(versionPath + '.tcl-original')) fs.copyFileSync(versionPath, versionPath + '.tcl-original');
+    versionSource = versionSource.replace(hangingForm, versionMarker + '\n        latest: pkg.version');
+    fs.writeFileSync(versionPath, versionSource);
+}
+console.log('Applied bundled version response; /api/version no longer waits on the npm registry');

@@ -283,7 +283,7 @@ public final class MainActivity extends Activity {
             });
     }
 
-    private static final String APP_RELEASE="0.3.3";
+    private static final String APP_RELEASE="0.3.4";
     private String selfUpdateApp(String apkUrl,String tag) throws Exception {
         java.io.File dir=new java.io.File(getFilesDir(),"update"); if(!dir.isDirectory())dir.mkdirs();
         java.io.File apk=new java.io.File(dir,"update.apk");

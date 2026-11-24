@@ -39,7 +39,7 @@ final class Installer {
         for (ChannelCatalog.Channel scanned : ChannelCatalog.parse(rows,includeSatellite(context,rows))) {
             JSONObject channel = new JSONObject();
             channel.put("name", scanned.name);channel.put("type", scanned.type);
-            channel.put("channel", scanned.channel);channel.put("isDisabled", false);
+            channel.put("channel", scanned.channel);channel.put("isDisabled", isUnreceivable(scanned));
             channels.put(channel);
         }
         write(new File(stage,"channels.yml"), channels.toString(2));
@@ -56,6 +56,21 @@ final class Installer {
 
     /** Stops Mirakurun, scans the cable, updates the Mirakurun tuner/channel files and starts it again. */
     static final String PREFS="catalog";
+    /** Services present in the TV channel database that never deliver a
+        registrable stream on this system (off-air/temporary and similar).
+        If they are enabled, Mirakurun's service scan retries them forever
+        and starves the tuners, so generated channel lists keep them
+        disabled. Confirmed on the reference system 2026-11-23.
+        Keys are type:channel. */
+    private static final Set<String> UNRECEIVABLE = new HashSet<>(Arrays.asList(
+        "GR:31938_31938_52247", "GR:31941_31941_52271",
+        "BS:4_16433_103", "BS:4_16433_104", "BS:4_16592_144", "BS:4_16401_169",
+        "BS:4_16402_179", "BS:4_16593_188", "BS:4_16593_189", "BS:4_16529_200",
+        "BS:4_16626_202", "BS:4_18098_231", "BS:4_18098_232", "BS:4_18130_236",
+        "BS:4_18099_251", "BS:4_18802_263"));
+    static boolean isUnreceivable(ChannelCatalog.Channel channel) {
+        return UNRECEIVABLE.contains(channel.type + ":" + channel.channel);
+    }
     /** Satellite BS/CS entries from the TV database are kept only when there is no CATV list, or when the user asked for both. */
     static boolean includeSatellite(Context context,String rows){
         boolean hasCatv=rows.contains("type=TYPE_ISDB_C");
@@ -106,7 +121,7 @@ final class Installer {
         String tunersTarget=BASE+"/rootfs/usr/local/etc/mirakurun/tuners.yml";
         Root.capture("cp "+Root.quote(tuners.getAbsolutePath())+" "+tunersTarget+".new && chmod 600 "+tunersTarget+".new && mv "+tunersTarget+".new "+tunersTarget);
         String rows=CatvCatalog.rows(CatvCatalog.read(Root::capture))+Root.capture("content query --uri content://android.media.tv/channel --projection original_network_id:transport_stream_id:service_id:type:service_type:browsable:display_name");
-        JSONArray channels=new JSONArray();for(ChannelCatalog.Channel scanned:ChannelCatalog.parse(rows,includeSatellite(context,rows))){JSONObject channel=new JSONObject();channel.put("name",scanned.name);channel.put("type",scanned.type);channel.put("channel",scanned.channel);channel.put("isDisabled",false);channels.put(channel);}
+        JSONArray channels=new JSONArray();for(ChannelCatalog.Channel scanned:ChannelCatalog.parse(rows,includeSatellite(context,rows))){JSONObject channel=new JSONObject();channel.put("name",scanned.name);channel.put("type",scanned.type);channel.put("channel",scanned.channel);channel.put("isDisabled",isUnreceivable(scanned));channels.put(channel);}
         File file=new File(context.getCacheDir(),"catv-mirakurun-channels.json");write(file,channels.toString(2));
         String target=BASE+"/rootfs/usr/local/etc/mirakurun/channels.yml";
         Root.capture("cp "+Root.quote(file.getAbsolutePath())+" "+target+".new && mv "+target+".new "+target);
